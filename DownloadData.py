@@ -1,18 +1,37 @@
 import requests #pip install requests if you don't already have this  
 from lxml import html # also with lxml if this is not available 
+import os
+from tqdm import tqdm #I want a progress bar...
+import requests
 
-# because this is easier .. and was curious to see if you can do this 
-def downloadFile(url,fileName):
-    r = requests.get(url, stream = True) 
-    with open(fileName,"wb") as fileToWrite: 
-        for chunk in r.iter_content(chunk_size=1024): 
-             # writing one chunk at a time to file 
-             if chunk: 
-                 fileToWrite.write(chunk) 
+# from TDQM docs https://github.com/tqdm/tqdm#hooks-and-callbacks
+
+# this one seems to work the best 
+# https://gist.github.com/wy193777/0e2a4932e81afc6aa4c8f7a2984f34e2
+def download_from_url(url, dst, chunk_size=1024*2):
+    file_size = int(requests.head(url).headers["Content-Length"])
+    if os.path.exists(dst):
+        first_byte = os.path.getsize(dst)
+    else:
+        first_byte = 0
+    if first_byte >= file_size:
+        return file_size
+    header = {"Range": "bytes=%s-%s" % (first_byte, file_size)}
+    pbar = tqdm( total=file_size, initial=first_byte, unit='B', unit_scale=True, desc=url.split('/')[-1])
+    req = requests.get(url, headers=header, stream=True)
+    with(open(dst, 'ab')) as f:
+        for chunk in req.iter_content(chunk_size):
+            if chunk:
+                f.write(chunk)
+                pbar.update(chunk_size)
+    pbar.close()
+    return file_size
 
 # lets see if I can figure out whats available to download from the html on the page 
 # apparently yes... see : https://docs.python-guide.org/scenarios/scrape/
 def decodePage(url):
+    #make data dir
+    os.system('mkdir -p data')
     r = requests.get(url)
     tree = html.fromstring(r.content)
     xmlStr = '//a[@data-ga-event=\"download\"]/text()'
@@ -30,10 +49,12 @@ def decodePage(url):
         refUrl = tag.get('href')
         if( '.zip' in refUrl or '.csv' in refUrl):
             # figure out a smarter way to label these..
-            print(label, ' - ', refUrl)
+            # print(label, ' - ', refUrl)
             refUrl_split=refUrl.split('.')
-            fileName='f%d.%s'%(fileIndex,refUrl_split[len(refUrl_split)-1])
-            downloadFile(refUrl,fileName)
+            fileName='data/f%d.%s'%(fileIndex,refUrl_split[len(refUrl_split)-1])
+            if( fileIndex == 0): 
+                print(refUrl)
+                download_from_url(refUrl, fileName,1024*32)
             fileIndex+=1
     return tagInfo
 
