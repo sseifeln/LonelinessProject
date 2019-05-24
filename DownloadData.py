@@ -3,6 +3,10 @@ from lxml import html # also with lxml if this is not available
 import os
 from tqdm import tqdm #I want a progress bar...
 import requests
+import xlrd
+import csv
+
+ 
 
 # from TDQM docs https://github.com/tqdm/tqdm#hooks-and-callbacks
 
@@ -47,17 +51,30 @@ def decodePage(url):
         publisher = tag.get('publisher')
         label = tag.get('aria-label')
         refUrl = tag.get('href')
-        if( '.zip' in refUrl or '.csv' in refUrl):
+        if( '.zip' in refUrl or '.csv' in refUrl and label != None ):
             # figure out a smarter way to label these..
-            # print(label, ' - ', refUrl)
             refUrl_split=refUrl.split('.')
+            print(label, ' - ', refUrl) 
+            labels=(label.split('dataset:'))
+            description=labels[len(labels)-1].split('-')[0].strip().replace(' ', '_')
+            print(description)
             fileName='data/f%d.%s'%(fileIndex,refUrl_split[len(refUrl_split)-1])
             if( fileIndex == 0): 
-                print(refUrl)
                 download_from_url(refUrl, fileName,1024*32)
             fileIndex+=1
     return tagInfo
 
 
+def csv_from_excel():
+
+    wb = xlrd.open_workbook('your_workbook.xls')
+    sh = wb.sheet_by_name('Sheet1')
+    your_csv_file = open('your_csv_file.csv', 'wb')
+    wr = csv.writer(your_csv_file, quoting=csv.QUOTE_ALL)
+
+    for rownum in xrange(sh.nrows):
+        wr.writerow(sh.row_values(rownum))
+
+    your_csv_file.close()
 
 
